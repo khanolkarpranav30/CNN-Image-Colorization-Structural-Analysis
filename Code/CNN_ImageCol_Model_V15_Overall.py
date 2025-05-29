@@ -36,7 +36,7 @@ from numpy import newaxis, zeros
 #from keras.models import load_weights
 import time
 
-# Get images from the datasets and labelling our training and testing
+# Get images from the datasets and label our training and testing. Uncomment the following loops to initiate the reahaping and labelling process.
 X1 = []
 Y1 = []
 #for i in range (0,500,1):
