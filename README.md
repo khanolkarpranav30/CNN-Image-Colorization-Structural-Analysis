@@ -19,8 +19,6 @@ This project presents a deep neural network (DNN)-based approach that leverages 
 This approach treats a microstructure containing porosity defects as a grayscale input image and uses image colorization techniques to predict the three strain field components—∊xx,∊yy, and ∊xy —which are represented as the red, green, and blue (RGB) output channels, respectively, as shown in the following figure 
 (Image taken from https://doi.org/10.1016/j.commatsci.2020.110068).
 
- ![image](https://github.com/user-attachments/assets/118719f4-d386-47f6-af18-a8173ca131bd)
-
 ---
 ## 🧠 Methodology
 
