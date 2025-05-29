@@ -1,0 +1,108 @@
+from part import *
+from material import *
+from section import *
+from assembly import *
+from step import *
+from interaction import *
+from load import *
+from mesh import *
+from optimization import *
+from job import *
+from sketch import *
+from visualization import *
+from connectorBehavior import *
+import csv
+import math
+import random
+import sys
+import numpy as np
+mdb.models['Model-1'].Material(name='Al6061T6')
+mdb.models['Model-1'].materials['Al6061T6'].Density(table=((2700.0, ), ))
+mdb.models['Model-1'].materials['Al6061T6'].Elastic(table=((68900000000.0,0.35), ))
+mdb.models['Model-1'].HomogeneousSolidSection(material='Al6061T6', name= 'Section-1', thickness=None)
+mdb.models['Model-1'].Part(name='ASTME8-04',dimensionality=TWO_D_PLANAR,type=DEFORMABLE_BODY)
+mdb.models['Model-1'].ConstrainedSketch(name='tensile_specimen',sheetSize=0.1)
+mdb.models['Model-1'].sketches['tensile_specimen'].rectangle(point1=(0,0),point2=(0.0381,0.006))
+x_pos=[]
+y_pos=[]
+no_pores=100
+switch_=0
+radius=[]
+no_porosity=0
+clearance=0.0001
+while no_porosity <no_pores:
+	radius_new=random.randrange(10,50)/100000.0
+	x_pos_new=random.randrange(0,381)/10000.0
+	y_pos_new=random.randrange(0,60)/10000.0
+	switch_=1
+ 	if x_pos_new+radius_new+clearance>=0.0381:
+        	switch_=0
+        if x_pos_new-radius_new-clearance<=0.0:
+                switch_=0
+        if y_pos_new+radius_new+clearance>=0.006:
+                switch_=0
+        if y_pos_new-radius_new-clearance<=0.0:
+                switch_=0
+	for inner_loop in range(no_porosity):
+		distance=math.sqrt(math.pow((x_pos_new-x_pos[inner_loop]),2)+math.pow((y_pos_new-y_pos[inner_loop]),2))
+		if distance<=radius_new+radius[inner_loop]+clearance:
+			switch_=0
+		if x_pos_new+radius_new>=0.0381:
+			switch_=0
+		if x_pos_new-radius_new<=0.0:
+			switch_=0
+		if y_pos_new+radius_new>=0.006:
+			switch_=0
+		if y_pos_new-radius_new<=0.0:
+			switch_=0
+	if switch_==1:
+		x_pos.append(x_pos_new)
+		y_pos.append(y_pos_new)
+		radius.append(radius_new)
+		mdb.models['Model-1'].sketches['tensile_specimen'].CircleByCenterPerimeter(center=(x_pos_new,y_pos_new),point1=(x_pos_new+radius_new,y_pos_new))
+		no_porosity=no_porosity+1
+
+circles=np.array([x_pos,y_pos,radius])
+circles=circles.transpose()
+np.savetxt('defects.dat',circles)
+mdb.models['Model-1'].parts['ASTME8-04'].BaseShell(sketch=mdb.models['Model-1'].sketches['tensile_specimen'])
+del mdb.models['Model-1'].sketches['tensile_specimen']
+mdb.models['Model-1'].parts['ASTME8-04'].Set(faces=mdb.models['Model-1'].parts['ASTME8-04'].faces.findAt(((0.1*clearance,0.1*clearance,0.000),(0.1*clearance,0.2*clearance,0.000)),),name='Set-1')
+mdb.models['Model-1'].parts['ASTME8-04'].SectionAssignment(offset=0.0,offsetField='', offsetType=MIDDLE_SURFACE, region= mdb.models['Model-1'].parts['ASTME8-04'].sets['Set-1'], sectionName= 'Section-1', thicknessAssignment=FROM_SECTION)
+mdb.models['Model-1'].parts['ASTME8-04'].seedPart(deviationFactor=0.05,minSizeFactor=0.1,size=0.0005)
+mdb.models['Model-1'].parts['ASTME8-04'].generateMesh()
+mdb.models['Model-1'].rootAssembly.DatumCsysByDefault(CARTESIAN)
+mdb.models['Model-1'].rootAssembly.Instance(dependent=ON, name='ASTME8-04-01',part=mdb.models['Model-1'].parts['ASTME8-04'])
+mdb.models['Model-1'].rootAssembly.Set(edges=mdb.models['Model-1'].rootAssembly.instances['ASTME8-04-01'].edges.findAt(((0.000,0.001,0.000),)),name='Edge-1')
+mdb.models['Model-1'].StaticStep(name='Step-1',previous='Initial')
+mdb.models['Model-1'].EncastreBC(createStepName='Step-1',localCsys=None,name='BC1',region=mdb.models['Model-1'].rootAssembly.sets['Edge-1'])
+mdb.models['Model-1'].rootAssembly.Set(edges=mdb.models['Model-1'].rootAssembly.instances['ASTME8-04-01'].edges.findAt(((0.038100,0.001,0.000),)),name='Edge-2')
+mdb.models['Model-1'].DisplacementBC(amplitude=UNSET, createStepName='Step-1',distributionType=UNIFORM, fieldName='', fixed=OFF, localCsys=None, name='BC2', region=mdb.models['Model-1'].rootAssembly.sets['Edge-2'], u1=0.0001, u2=UNSET, ur3=UNSET)
+mdb.Job(name='Job-1',model=mdb.models['Model-1'])
+mdb.jobs['Job-1'].submit()
+mdb.jobs['Job-1'].waitForCompletion()
+
+odb=session.openOdb(name='/storage/home/s/sxb514/porosity/McComb/Job-1.odb')
+session.viewports['Viewport: 1'].setValues(displayedObject=odb)
+
+session.fieldReportOptions.setValues(reportFormat=COMMA_SEPARATED_VALUES)
+
+session.writeFieldReport(fileName='abaqus.rpt', append=OFF,sortItem='Node Label', odb=odb, step=0, frame=1, outputPosition=NODAL,variable=(('E', INTEGRATION_POINT, ((COMPONENT, 'E11',),(COMPONENT, 'E22'), (COMPONENT, 'E12'), )), ))
+f=open('abaqus.rpt','r')
+reader=csv.reader(f)
+row=next(reader)
+data=[]
+count=1
+
+while 1:
+	try:
+		row=next(reader)
+		print(count)
+		count=count+1
+		data.append([float(row[4]),float(row[5]),float(row[6]),float(row[11]),float(row[12]),float(row[13])])
+	except:
+		f.close()
+		break
+	
+
+np.savetxt('strain_field.dat',data)
